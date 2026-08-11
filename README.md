@@ -59,28 +59,36 @@ passwordless root, returns output), `rl.py '<cmd>'`.
 
 ### DNS records
 
-Set the FQDNs on the box `dnrd` forwards to (`10.179.1.202`) - e.g. a BIND zone
-`wireless.att.com` (`/etc/bind/db.att`). Only two records matter (see the separate-IPs note
-above); a wildcard catches the rest:
+Set the FQDNs on the box `dnrd` forwards to (`10.179.1.202`). This repo ships the BIND zone
+under `bind/`:
 
-    femtocell        IN A 10.179.1.203     ; ACS  (CWMP)
-    cmhsse-decatur   IN A 10.179.1.202     ; CMHS (XMPP)
-    *                IN A 10.179.1.202     ; other AT&T hostnames
+    cp bind/db.att /etc/bind/db.att
+    cat bind/named.conf.local.snippet >> /etc/bind/named.conf.local
+    systemctl restart named            # or bind9
 
-Verify: `dig +short @10.179.1.202 femtocell.wireless.att.com` -> `10.179.1.203`.
+It maps `femtocell -> .203`, `cmhsse-decatur -> .202`, and `* -> .202`. Verify:
+`dig +short @10.179.1.202 femtocell.wireless.att.com` -> `10.179.1.203`.
 
 ## 2. Fire up the ACS and CWMP / XMPP server
 
-`acs_tr069.py` is one TLS server on `:443` serving both contexts (by destination IP, above),
-plus an HTTP server on `:8080` for the firmware. Run it (OpenSSL legacy is required for the
-old ciphers):
+`acs/acs_tr069.py` is one TLS server on `:443` serving both contexts (by destination IP,
+above). Its certs sit next to it in `acs/`: the self-signed server key/leaf (`leaf.key`,
+`chain20{2,3}.pem`) and the genuine ip.access/Cisco CA bundle (`cisco_clientca.pem`) used to
+verify the femto's own client cert.
 
-    OPENSSL_CONF=legacy.cnf python3 acs_tr069.py
+    pip install -r requirements.txt
+    OPENSSL_CONF=acs/legacy.cnf python3 acs/acs_tr069.py
 
-Arm the exploit download: create `.selfclean_arm`, remove `.selfclean_sent` (send-once gate).
-On the next Inform the ACS sends a `Download` for `rmm-selfclean.sdp`; the femto fetches it
-from `:8080` and applies it. The femto accepts the server's self-signed cert (stock-firmware
-weakness); no CA work needed.
+Edit the config block at the top of `acs/acs_tr069.py` for your deployment: `SDP_URL`,
+`SDP_SIZE`, and the `CTX` dict keys (your ACS `.203` / CMHS `.202` IPs).
+
+Serve the firmware over HTTP separately, matching `SDP_URL`:
+
+    python3 -m http.server 8080        # from a directory containing rmm-selfclean.sdp
+
+Arm the exploit download (send-once): `touch acs/.selfclean_arm; rm -f acs/.selfclean_sent`.
+On the next Inform the ACS sends a `Download`; the femto fetches the firmware and applies it.
+The femto accepts the self-signed cert (stock-firmware weakness); no CA work needed.
 
 ## 3. Custom firmware
 
@@ -101,13 +109,14 @@ No sftp on the unit; pull files with `ssh ... 'cat /path'`.
 
 - Firmware/hook: `/var/ipaccess/selfclean_hook.log`, `/var/ipaccess/cwmp_rce_proof_persist`
 - Femto manager: `/var/ipaccess/mgr_app.log`, `/var/log/messages`
-- ACS / CMHS: stdout of `acs_tr069.py`
+- ACS / CMHS: `/var/log/acs_tr069.log` (request bodies in `/var/log/acs_bodies.log`), and stdout
 
 ## Files
 
 - `cwmp_rce_key`, `cwmp_rce_key.pub` - SSH keypair baked into the firmware
 - `rmm-selfclean.sdp` - the RCE firmware image
 - `selfclean_hook.sh` - the root hook it runs
-- `acs_tr069.py` - ACS + CMHS (XMPP) server (Python stdlib only)
+- `acs/` - ACS + CMHS (XMPP) server and its TLS certs + `legacy.cnf`
+- `bind/` - DNS zone (`db.att`) + `named.conf.local` snippet
 - `rroot.py`, `rl.py` - Ralink root helpers (need `pexpect`)
-- `requirements.txt` - `pip install -r requirements.txt` (just `pexpect`, for the helpers)
+- `requirements.txt` - `pip install -r requirements.txt`

