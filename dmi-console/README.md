@@ -30,11 +30,18 @@ survive reboots - drop it there and launch it from the `opmode.sh` boot hook.
 
 ## What it shows
 
-- Active alarms (`apActiveAlarmsList`, e.g. "Unable to correct frequency error from NWL")
-- GPS / GPIO (GPS power via `GPIO_GPS_ON_OFF`, crystal discipline method, NTP server)
-- Cell / RF / sync (adminState, csgAccessMode, hnbGwAddress, UARFCN, ...)
-- All DMI parameters with a live client-side filter
-- A set box on each row -> `ipa-dmi -c "set <attr>=<val>"` (Stdin is /dev/null, so the
-  interactive `dmi>` prompt EOFs instead of hanging)
+Dashboard panels (top): System (uptime/load/free RAM), Identity (serial/MAC/variant/kernel),
+NTP/oscillator (ntpq peer/reach/offset/jitter - the discipline health), GPS (receiver
+running? fix state from `/tmp/gps`; AGPS source), Cell/UE (adminState, operationalState,
+csgAccessMode, hnbGwAddress, close cause, active RABs).
 
-Single file, Go stdlib only.
+Then: Active alarms (`apActiveAlarmsList`), Network Listen (macro cells heard - tied to the
+"frequency error from NWL" alarm), Cell/RF/sync with per-row set boxes, All DMI parameters
+with a live filter, and a tail of `/var/log/messages`.
+
+Set box on the settable rows -> `ipa-dmi -c "set <attr>=<val>"` (Stdin is /dev/null so the
+interactive `dmi>` prompt EOFs instead of hanging).
+
+Data sources: `ipa-dmi -c getobj`, `/opt/ipaccess/bin/ntpq -pn`, `/proc/{uptime,loadavg,meminfo}`,
+`/tmp/gps`, `/var/ipaccess/cisco/gps.cfg`, `hw_description.dat`, `/var/log/messages`.
+Single file, Go stdlib only (raw `net`, no `net/http`).
