@@ -195,7 +195,9 @@ func page() string {
 	a := parse(dmi("-c", "getobj"))
 	al := sub(a, "alarm")
 	return `<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">` + css +
-		`<h1>DPH-153 DMI console <a href=/ style=float:right>&#8635; refresh</a></h1><div class=g>` +
+		`<h1>DPH-153 DMI console <a href=/ style=float:right>&#8635; refresh</a></h1>` +
+		`<form method=post action=/cellup style="margin:10px 0;padding:10px;background:#12240f;border:1px solid #4a7"><b style=color:#7f7>Bring cell up</b> &nbsp; HNBGW <input name=hnbgw value="` + esc(clean(find(a, "hnbGwAddress"))) + `" size=14> NTP <input name=ntp value="` + esc(clean(find(a, "defaultNtpServer"))) + `" size=14> <button>GO</button> <span style=color:#888>runs unlock + open-access + establish-HNBGW + ntpd</span></form>` +
+		`<div class=g>` +
 		`<div><h2>System</h2>` + kvtab(health()) + `</div>` +
 		`<div><h2>Identity</h2>` + kvtab(ident()) + `</div>` +
 		`<div><h2>NTP / oscillator</h2>` + kvtab(ntpd()) + `</div>` +
@@ -229,6 +231,45 @@ func doSet(body string) string {
 	return css + "<p>set <b>" + esc(at) + "</b> = <b>" + esc(v) + "</b></p><pre>" + m + "</pre><a href=/>&larr; back</a>"
 }
 
+func clean(s string) string { return strings.Trim(s, "\"() ") }
+
+func cellup(hnbgw, ntp string) string {
+	var b strings.Builder
+	st := func(d, o string) { b.WriteString(d + "  =>  " + esc(strings.TrimSpace(o)) + "\n") }
+	if ntp != "" {
+		st("set defaultNtpServer="+ntp, dmi("-c", "set defaultNtpServer="+ntp))
+	}
+	if !strings.Contains(run("ps"), "ntpd") {
+		if _, e := os.Stat("/tmp/ntp/ntp.conf"); e == nil {
+			c := exec.Command("/opt/ipaccess/bin/ntpd", "-g", "-c", "/tmp/ntp/ntp.conf")
+			c.Env = append(os.Environ(), "LD_LIBRARY_PATH=/opt/ipaccess/lib")
+			c.Start()
+			st("ntpd", "launched with stock /tmp/ntp/ntp.conf")
+		} else {
+			st("ntpd", "SKIP - /tmp/ntp/ntp.conf not generated yet (set NTP, wait ~30s, retry)")
+		}
+	} else {
+		st("ntpd", "already running (left alone)")
+	}
+	if hnbgw != "" {
+		st("set hnbGwAddress="+hnbgw, dmi("-c", "set hnbGwAddress="+hnbgw))
+	}
+	st("administrativeState=UNLOCKED", dmi("-c", "set administrativeState=UNLOCKED"))
+	st("rrmAdminState=LOC_UNLOCKED", dmi("-c", "set rrmAdminState=LOC_UNLOCKED"))
+	st("csgAccessMode=OPEN_ACCESS", dmi("-c", "set csgAccessMode=CSG_ACCESS_MODE_OPEN_ACCESS"))
+	st("action 2061", dmi("-c", "action 2061"))
+	st("action 1216", dmi("-c", "action 1216"))
+	st("establishPermanentHnbGwConnection", dmi("-c", "action establishPermanentHnbGwConnection"))
+	return b.String()
+}
+
+func doCellup(body string) string {
+	return css + "<h1>Bring cell up</h1><pre>" + cellup(form(body, "hnbgw"), form(body, "ntp")) +
+		"</pre><p>Now watch the <b>NTP / oscillator</b> panel: once reach hits 377 and the crystal " +
+		"disciplines (~10-15 min from cold), the manager keys the RF and it registers with the HNBGW. " +
+		"Re-run this any time - it is idempotent.</p><a href=/>&larr; back to console</a>"
+}
+
 func handle(c net.Conn) {
 	defer c.Close()
 	c.SetDeadline(time.Now().Add(30 * time.Second))
@@ -260,6 +301,8 @@ func handle(c net.Conn) {
 	out := page()
 	if f[1] == "/set" {
 		out = doSet(string(body))
+	} else if f[1] == "/cellup" {
+		out = doCellup(string(body))
 	}
 	c.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type:text/html\r\nConnection:close\r\nContent-Length:" + strconv.Itoa(len(out)) + "\r\n\r\n" + out))
 }
