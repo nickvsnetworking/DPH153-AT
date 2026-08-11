@@ -2,10 +2,10 @@ import ssl, socket, datetime, threading, os, re
 
 # --- config: edit for your deployment ---------------------------------------
 _HERE = os.path.dirname(os.path.abspath(__file__))       # certs live next to this file
-SDP_URL  = "http://10.179.1.202:8080/rmm-selfclean.sdp"  # where the femto fetches the firmware
+SDP_URL  = "http://192.168.0.83:8080/rmm-selfclean.sdp"  # where the femto fetches the firmware
 SDP_SIZE = 3710                                          # bytes of rmm-selfclean.sdp (must match)
 # The CTX dict below is keyed by the destination IP the femto dialed (it sends no SNI);
-# those keys must be your ACS (.203) and CMHS (.202) addresses.
+# those keys must be your ACS (192.168.0.6) and CMHS (192.168.0.83) addresses.
 # ----------------------------------------------------------------------------
 
 LOG="/var/log/acs_tr069.log"
@@ -39,10 +39,10 @@ def make_ctx(chain, key):
 
 # Per-destination-IP contexts (femto sends NO SNI): pick the cert by the IP it dialed.
 CTX={
- "10.179.1.202": make_ctx(os.path.join(_HERE,"chain202.pem"),os.path.join(_HERE,"leaf.key")),  # CMHS
- "10.179.1.203": make_ctx(os.path.join(_HERE,"chain203.pem"),os.path.join(_HERE,"leaf.key")),  # ACS/femtocell
+ "192.168.0.83": make_ctx(os.path.join(_HERE,"chain202.pem"),os.path.join(_HERE,"leaf.key")),  # CMHS
+ "192.168.0.6": make_ctx(os.path.join(_HERE,"chain203.pem"),os.path.join(_HERE,"leaf.key")),  # ACS/femtocell
 }
-DEFAULT=CTX["10.179.1.202"]
+DEFAULT=CTX["192.168.0.83"]
 
 SOAP_HDR=('<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" '
           'xmlns:soap-enc="http://schemas.xmlsoap.org/soap/encoding/" '
@@ -236,7 +236,7 @@ def handle_cmhs(s, addr):
 def handle(raw, addr):
     try: dst=raw.getsockname()[0]
     except Exception: dst="?"
-    chan="ACS/femtocell" if dst=="10.179.1.203" else "CMHS/other"
+    chan="ACS/femtocell" if dst=="192.168.0.6" else "CMHS/other"
     ctx=CTX.get(dst, DEFAULT)
     log(f"{addr} -> {dst} [{chan}]")
     try:

@@ -1,15 +1,10 @@
 $TTL 20
 @   IN SOA ns.wireless.att.com. root.wireless.att.com. ( 2026072203 3600 600 86400 20 )
 @   IN NS  ns.wireless.att.com.
-ns  IN A   10.179.1.202
-@   IN A   10.179.1.202
-cmhsse-decatur   IN A 10.179.1.202
-femtocell        IN A 10.179.1.203
-\052                    IN A 10.179.1.202
-cmhsse-lake-mary       IN A 10.179.1.202
-cmhsne-rochelle-park   IN A 10.179.1.202
-cmhsne-columbia        IN A 10.179.1.202
-cmhsce-carrollton      IN A 10.179.1.202
-cmhsce-hazelwood       IN A 10.179.1.202
-cmhswe-santa-clara     IN A 10.179.1.202
-cmhswe-santa-ana       IN A 10.179.1.202
+ns  IN A   192.168.0.83
+@   IN A   192.168.0.83
+; ACS (CWMP)
+femtocell   IN A 192.168.0.6
+; CMHS (XMPP) - every region homes here. The wildcard *.wireless.att.com cert covers
+; whatever cmhs*-* name a given unit asks for, so this one wildcard record is enough.
+*           IN A 192.168.0.83

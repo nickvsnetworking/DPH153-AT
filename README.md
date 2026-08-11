@@ -12,8 +12,8 @@ These are the addresses this was built on; substitute your own.
 | `192.168.157.186` | PICO / NodeB - the femto itself (where you get root) |
 | `192.168.157.185` | Ralink router SoC inside the unit - the PICO's DNS resolver and NAT gateway |
 | `192.168.157.184/30` | the unit's internal subnet (route to it from your workstation) |
-| `10.179.1.203` | ACS (CWMP / TR-069) |
-| `10.179.1.202` | CMHS (XMPP provisioning) - must be a different IP from the ACS |
+| `192.168.0.6` | ACS (CWMP / TR-069) |
+| `192.168.0.83` | CMHS (XMPP provisioning) - must be a different IP from the ACS |
 | `10.5.198.200` | NTP server (oscillator discipline; the cell will not key TX without it) |
 | `10.5.198.115` | the PICO's source IP as the core sees it (NAT'd through the Ralink) |
 
@@ -31,8 +31,8 @@ single address. `acs_tr069.py` selects the handler (and matching cert) purely by
 DESTINATION IP the femto dialed, so the two have to live on different IPs and DNS must send
 each hostname to the matching one:
 
-    femtocell.wireless.att.com       ->  10.179.1.203   (ACS / CWMP)
-    cmhsse-decatur.wireless.att.com  ->  10.179.1.202   (CMHS / XMPP)
+    femtocell.wireless.att.com       ->  192.168.0.6   (ACS / CWMP)
+    cmhsse-decatur.wireless.att.com  ->  192.168.0.83   (CMHS / XMPP)
 
 Put both IPs on the ACS host (an `eth0` alias for the second) and the one server binds both.
 
@@ -48,10 +48,10 @@ Telnet to `192.168.157.185` as `guest` / `1qaz@WSX`. Run commands as root via:
 
 Re-point the relay:
 
-    rmm_client 192.168.157.185 cs_cmd "killall dnrd; dnrd -s 10.179.1.202 -a 192.168.157.185 -u guest"
+    rmm_client 192.168.157.185 cs_cmd "killall dnrd; dnrd -s 192.168.0.83 -a 192.168.157.185 -u guest"
 
 This kills the stock relay (which forwards to AT&T's own DNS, so the PICO would find the
-real ACS) and restarts it forwarding every query to `10.179.1.202` (`-s`, your DNS box),
+real ACS) and restarts it forwarding every query to `192.168.0.83` (`-s`, your DNS box),
 listening on the Ralink's IP `192.168.157.185` (`-a`, what the PICO queries), as user
 `guest` (`-u`). `dnrd` holds no records itself - it only changes WHERE the PICO's lookups
 go. It reverts on every PICO power-cycle; re-run it. Helpers: `rroot.py '<cmd>'` (injects
@@ -59,7 +59,7 @@ passwordless root, returns output), `rl.py '<cmd>'`.
 
 ### DNS records
 
-Set the FQDNs on the box `dnrd` forwards to (`10.179.1.202`). This repo ships the BIND zone
+Set the FQDNs on the box `dnrd` forwards to (`192.168.0.83`). This repo ships the BIND zone
 under `bind/`:
 
     cp bind/db.att /etc/bind/db.att
@@ -67,7 +67,7 @@ under `bind/`:
     systemctl restart named            # or bind9
 
 It maps `femtocell -> .203`, `cmhsse-decatur -> .202`, and `* -> .202`. Verify:
-`dig +short @10.179.1.202 femtocell.wireless.att.com` -> `10.179.1.203`.
+`dig +short @192.168.0.83 femtocell.wireless.att.com` -> `192.168.0.6`.
 
 ## 2. Fire up the ACS and CWMP / XMPP server
 
@@ -88,7 +88,7 @@ Serve the firmware over HTTP separately, matching `SDP_URL`:
 
 Arm the exploit download (send-once): `touch acs/.selfclean_arm; rm -f acs/.selfclean_sent`.
 On the next Inform the ACS sends a `Download`; the femto fetches the firmware and applies it.
-The femto accepts the self-signed cert (stock-firmware weakness); no CA work needed.
+The femto accepts the self-signed cert chain (no CA work) but DOES check the cert NAME against the host it dialed. This branch ships a *.wireless.att.com wildcard leaf so it matches any per-unit CMHS homing (cmhswe-*, cmhsse-*, ...) and femtocell.
 
 ## 3. Custom firmware
 
