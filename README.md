@@ -66,7 +66,7 @@ under `bind/`:
     cat bind/named.conf.local.snippet >> /etc/bind/named.conf.local
     systemctl restart named            # or bind9
 
-It maps `femtocell -> .203`, `cmhsse-decatur -> .202`, and `* -> .202`. Verify:
+It maps `femtocell -> .6`, `cmhsse-decatur -> .83`, and `* -> .83`. Verify:
 `dig +short @192.168.0.83 femtocell.wireless.att.com` -> `192.168.0.6`.
 
 ## 2. Fire up the ACS and CWMP / XMPP server
@@ -80,7 +80,7 @@ verify the femto's own client cert.
     OPENSSL_CONF=acs/legacy.cnf python3 acs/acs_tr069.py
 
 Edit the config block at the top of `acs/acs_tr069.py` for your deployment: `SDP_URL`,
-`SDP_SIZE`, and the `CTX` dict keys (your ACS `.203` / CMHS `.202` IPs).
+`SDP_SIZE`, and the `CTX` dict keys (your ACS `.6` / CMHS `.83` IPs).
 
 Serve the firmware over HTTP separately, matching `SDP_URL`:
 
