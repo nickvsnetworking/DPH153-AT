@@ -95,7 +95,7 @@ The femto accepts the self-signed cert (stock-firmware weakness); no CA work nee
 `rmm-selfclean.sdp` is a hook-only ip.access `.SDP` (signing is off on this build). The CWMP
 `Download` runs `selfclean_hook.sh` as root: it tears down the upgrade transaction (no reboot
 loop), enables the stock sshd on `0.0.0.0:22` via nv_env, and installs `cwmp_rce_key.pub`.
-The filename must start with `rmm-` or the femto rejects it (fault 9003).
+The filename must start with `rmm-` or the femto rejects it (fault 9003). See FIRMWARE.md for how the `.SDP` is built.
 
 ## 4. Log in as root
 
@@ -116,6 +116,8 @@ No sftp on the unit; pull files with `ssh ... 'cat /path'`.
 - `cwmp_rce_key`, `cwmp_rce_key.pub` - SSH keypair baked into the firmware
 - `rmm-selfclean.sdp` - the RCE firmware image
 - `selfclean_hook.sh` - the root hook it runs
+- `sdp_pack.py` - the `.SDP` packer (build: `python3 sdp_pack.py selfclean_hook.sh rmm-selfclean.sdp`)
+- `FIRMWARE.md` - how the firmware is built
 - `acs/` - ACS + CMHS (XMPP) server and its TLS certs + `legacy.cnf`
 - `bind/` - DNS zone (`db.att`) + `named.conf.local` snippet
 - `rroot.py`, `rl.py` - Ralink root helpers (need `pexpect`)
